@@ -83,14 +83,30 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
-   
-
     def get_queryset(self):
-        # Kullanıcıya göre filtreleme
         user = self.request.user
+        
+        # Admin kullanıcılar tüm siparişleri görebilir
         if user.is_staff:
             return SatinAlmaSiparisi.objects.all()
-        return SatinAlmaSiparisi.objects.filter(olusturan=user)
+        
+        # Kullanıcının departmanını al
+        user_department = getattr(user.profile, 'departman', None)
+        
+        # Base queryset
+        queryset = SatinAlmaSiparisi.objects.filter(
+            models.Q(olusturan=user) |  # Siparişi oluşturan kişi görebilir
+            models.Q(tedarik_surec_durumu__mevcut_adim__onaylayanlar=user) |  # Onaylayıcı olarak atanmış kişi görebilir
+            models.Q(tedarik_surec_durumu__son_islem_yapan=user)  # Son işlem yapan kişi görebilir
+        )
+        
+        # Eğer kullanıcının departmanı varsa, departmana atanmış adımları da görebilir
+        if user_department:
+            queryset = queryset | SatinAlmaSiparisi.objects.filter(
+                tedarik_surec_durumu__mevcut_adim__departmanlar=user_department
+            )
+        
+        return queryset.distinct().order_by('-olusturma_tarihi')
     
     def perform_create(self, serializer):
         # Kullanıcıyı otomatik olarak ekle
