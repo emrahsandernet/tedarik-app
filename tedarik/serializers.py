@@ -2,9 +2,28 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     Departman, UserProfile, Urun, Tedarikci, Surec, Adim,
-    SatinAlmaSiparisi, SurecDurumu, GeriGonderme, Dosya, Proje,
-    SurecYorum
+    MalzemeTalep, SurecDurumu, GeriGonderme, Dosya, Proje,
+    SurecYorum, MalzemeTalepSatir, Malzeme,
 )
+class MalzemeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Malzeme
+        fields = ['id', 'ad', 'kategori', 'aciklama','birim']
+
+class MalzemeTalepSatirSerializer(serializers.ModelSerializer):
+    malzeme = MalzemeSerializer(read_only=True)
+    malzeme_id = serializers.PrimaryKeyRelatedField(
+        queryset=Malzeme.objects.all(),
+        write_only=True,
+        source='malzeme'
+    )
+
+    class Meta:
+        model = MalzemeTalepSatir
+        fields = ['id', 'talep', 'malzeme', 'malzeme_id', 'miktar']
+        read_only_fields = ['talep']
+
+
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -116,34 +135,31 @@ class ProjeSerializer(serializers.ModelSerializer):
         fields = ['id', 'ad', 'aciklama']
 
 
-class BasitSatinAlmaSiparisiSerializer(serializers.ModelSerializer):
+class BasitMalzemeTalepSerializer(serializers.ModelSerializer):
     olusturan = UserSerializer(read_only=True)
     proje = ProjeSerializer(read_only=True)
+    malzemeler = MalzemeTalepSatirSerializer(source='satirlar', many=True, read_only=True)
+    
     proje_id = serializers.PrimaryKeyRelatedField( 
         queryset=Proje.objects.all(),
         source='proje',
         write_only=True
     )
-    onay_sureci = SurecSerializer(read_only=True)
-    onay_sureci_id = serializers.PrimaryKeyRelatedField(
-        queryset=Surec.objects.filter(aktif=True),
-        source='onay_sureci',
-        write_only=True,
-        required=False
-    )
-    son_islem_yapan = UserSerializer(read_only=True)
-  
 
+    son_islem_yapan = UserSerializer(read_only=True)
+    olusturma_tarihi = serializers.DateTimeField(read_only=True)
+    guncelleme_tarihi = serializers.DateTimeField(read_only=True)
+  
     class Meta:
-        model = SatinAlmaSiparisi
+        model = MalzemeTalep
         fields = [
-            'id', 'olusturan', 'proje', 'proje_id', 'toplam_tutar', 'durum',
-            'onay_sureci', 'onay_sureci_id', 'son_islem_yapan',
+            'id', 'olusturan', 'proje', 'proje_id', 'durum', 'aciklama',
+            'malzemeler', 'son_islem_yapan',
             'olusturma_tarihi', 'guncelleme_tarihi'
         ]
 
 class SurecDurumuSerializer(serializers.ModelSerializer):
-    siparis = BasitSatinAlmaSiparisiSerializer(read_only=True)
+    siparis = BasitMalzemeTalepSerializer(read_only=True)
     surec = SurecSerializer(read_only=True)
     mevcut_adim = serializers.SerializerMethodField()
     tamamlanan_adimlar = serializers.SerializerMethodField()
@@ -170,7 +186,7 @@ class SurecDurumuSerializer(serializers.ModelSerializer):
             context={'surec_durumu_id': obj.id}
         ).data
 
-class SatinAlmaSiparisiSerializer(BasitSatinAlmaSiparisiSerializer):
+class MalzemeTalepSerializer(BasitMalzemeTalepSerializer):
     surec_durumu = serializers.SerializerMethodField()
 
     def get_surec_durumu(self, obj):
@@ -190,8 +206,8 @@ class SatinAlmaSiparisiSerializer(BasitSatinAlmaSiparisiSerializer):
         validated_data['olusturan'] = user
         return super().create(validated_data)
 
-    class Meta(BasitSatinAlmaSiparisiSerializer.Meta):
-        fields = BasitSatinAlmaSiparisiSerializer.Meta.fields + ['surec_durumu']
+    class Meta(BasitMalzemeTalepSerializer.Meta):
+        fields = BasitMalzemeTalepSerializer.Meta.fields + ['surec_durumu']
 
 class GeriGondermeSerializer(serializers.ModelSerializer):
     geri_gonderen = UserSerializer(read_only=True)

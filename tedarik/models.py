@@ -84,7 +84,7 @@ class Proje(models.Model):
     def __str__(self):
         return self.ad
     
-class SatinAlmaSiparisi(models.Model):
+class MalzemeTalep(models.Model):
     DURUM_SECENEKLERI = [
         ('taslak', 'Taslak'),
         ('onay_bekliyor', 'Onay Bekliyor'),
@@ -99,15 +99,7 @@ class SatinAlmaSiparisi(models.Model):
         related_name='tedarik_olusturulan_siparisler'
     )
     
-    toplam_tutar = models.DecimalField(max_digits=15, decimal_places=2)
     durum = models.CharField(max_length=20, choices=DURUM_SECENEKLERI, default='taslak')
-    onay_sureci = models.ForeignKey(
-        Surec, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True,
-        related_name='tedarik_siparisler'
-    )
     proje = models.ForeignKey(Proje, on_delete=models.SET_NULL, null=True, blank=True)
     son_islem_yapan = models.ForeignKey(
         User, 
@@ -118,18 +110,43 @@ class SatinAlmaSiparisi(models.Model):
     )
     olusturma_tarihi = models.DateTimeField(auto_now_add=True)
     guncelleme_tarihi = models.DateTimeField(auto_now=True)
-
+    aciklama = models.TextField(blank=True, null=True)
     def __str__(self):
-        return f"{self.olusturan} - {self.proje} - {self.toplam_tutar}"
+        return f"{self.olusturan} - {self.proje}"
     
     class Meta:
         verbose_name = 'Satin Alma Siparişi'
         verbose_name_plural = 'Satin Alma Siparişleri'
-        ordering = ['-olusturma_tarihi']    
+        ordering = ['-olusturma_tarihi'] 
+
+class MalzemeKategori(models.Model):
+    ad = models.CharField(max_length=255)
+    aciklama = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.ad
+
+class Malzeme(models.Model):
+    ad = models.CharField(max_length=255)
+    aciklama = models.TextField(blank=True, null=True)
+    birim = models.CharField(max_length=255)
+    stok = models.IntegerField(null=True, blank=True)
+    kategori = models.ForeignKey(MalzemeKategori, on_delete=models.CASCADE, related_name='malzemeler')
+    def __str__(self):
+        return f"{self.ad} - {self.kategori} - {self.birim} - {self.stok}"
+
+class MalzemeTalepSatir(models.Model):
+    talep = models.ForeignKey(MalzemeTalep, on_delete=models.CASCADE, related_name='satirlar')
+    malzeme = models.ForeignKey(Malzeme, on_delete=models.CASCADE, related_name='talep_satirlar')
+    miktar = models.DecimalField(max_digits=10, decimal_places=2)
+    
+
+    def __str__(self):
+        return f"{self.talep} - {self.malzeme} - {self.miktar}"
 
 class SurecDurumu(models.Model):
     siparis = models.OneToOneField(
-        SatinAlmaSiparisi, 
+        MalzemeTalep, 
         on_delete=models.CASCADE, 
         related_name='tedarik_surec_durumu'
     )

@@ -1,13 +1,13 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
-    UserProfileViewSet, SatinAlmaSiparisiViewSet, SurecViewSet, 
+    UserProfileViewSet, MalzemeTalepViewSet, SurecViewSet, 
     AdimViewSet, SurecDurumuViewSet, GeriGondermeViewSet, DosyaViewSet, 
     MeView, SurecYorumViewSet
 )
 
 router = DefaultRouter()
-router.register(r'siparisler', SatinAlmaSiparisiViewSet)
+router.register(r'talepler', MalzemeTalepViewSet)
 router.register(r'surecler', SurecViewSet)
 router.register(r'adimlar', AdimViewSet)
 router.register(r'surec-durumlari', SurecDurumuViewSet)

@@ -5,15 +5,16 @@ from rest_framework.response import Response
 from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from .models import (
-    Urun, Tedarikci, SatinAlmaSiparisi, Surec, Adim, 
+    Urun, Tedarikci, MalzemeTalep, Surec, Adim, 
     SurecDurumu, Departman, UserProfile, GeriGonderme, Dosya,
-    Proje, SurecYorum
+    Proje, SurecYorum, MalzemeTalepSatir, Malzeme, MalzemeKategori
 )
 from .serializers import (
-    UrunSerializer, TedarikciSerializer, SatinAlmaSiparisiSerializer,
+    UrunSerializer, TedarikciSerializer, MalzemeTalepSerializer,
     SurecSerializer, AdimSerializer, SurecDurumuSerializer,
     DepartmanSerializer, UserProfileSerializer, GeriGondermeSerializer,
-    DosyaSerializer, ProjeSerializer, SurecYorumSerializer
+    DosyaSerializer, ProjeSerializer, SurecYorumSerializer,
+    MalzemeTalepSatirSerializer, MalzemeSerializer
 )
 from workflow.engine import WorkflowEngine
 from django.shortcuts import get_object_or_404
@@ -77,9 +78,9 @@ class AdimViewSet(viewsets.ModelViewSet):
         
         return Response(serializer.data)
 
-class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
-    queryset = SatinAlmaSiparisi.objects.all()
-    serializer_class = SatinAlmaSiparisiSerializer
+class MalzemeTalepViewSet(viewsets.ModelViewSet):
+    queryset = MalzemeTalep.objects.all()
+    serializer_class = MalzemeTalepSerializer
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
     
@@ -88,19 +89,21 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
         
         # Admin kullanıcılar tüm siparişleri görebilir
         if user.is_staff:
-            return SatinAlmaSiparisi.objects.all()
+            return MalzemeTalep.objects.all()
         
         # Kullanıcının departmanını al
         user_department = getattr(user.profile, 'departman', None)
         
         # Base queryset
-        queryset = SatinAlmaSiparisi.objects.filter(
-            models.Q(tedarik_surec_durumu__mevcut_adim__onaylayanlar=user)  # Onaylayıcı olarak atanmış kişi görebilir
+        queryset = MalzemeTalep.objects.filter(
+            models.Q(olusturan=user) |  # Siparişi oluşturan kişi görebilir
+            models.Q(tedarik_surec_durumu__mevcut_adim__onaylayanlar=user) |  # Onaylayıcı olarak atanmış kişi görebilir
+            models.Q(tedarik_surec_durumu__son_islem_yapan=user)  # Son işlem yapan kişi görebilir
         )
         
         # Eğer kullanıcının departmanı varsa, departmana atanmış adımları da görebilir
         if user_department:
-            queryset = queryset | SatinAlmaSiparisi.objects.filter(
+            queryset = queryset | MalzemeTalep.objects.filter(
                 tedarik_surec_durumu__mevcut_adim__departmanlar=user_department
             )
         
@@ -108,7 +111,13 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Kullanıcıyı otomatik olarak ekle
+        
+        
         serializer.save(olusturan=self.request.user, son_islem_yapan=self.request.user)
+        malzemeler = self.request.data.get('malzemeler', [])
+        for malzeme in malzemeler:
+            MalzemeTalepSatir.objects.create(talep=serializer.instance, malzeme=Malzeme.objects.get(id=malzeme['malzeme_id']), miktar=malzeme['miktar'])
+        
 
     
     
@@ -121,11 +130,11 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
             geri_gondermeler = GeriGonderme.objects.filter(surec_durumu=surec_durumu)
             
             return Response({
-                'siparis': SatinAlmaSiparisiSerializer(siparis).data,
+                'siparis': MalzemeTalepSerializer(siparis).data,
                 'surec_durumu': SurecDurumuSerializer(surec_durumu).data,
                 'geri_gondermeler': GeriGondermeSerializer(geri_gondermeler, many=True).data
             })
-        except SatinAlmaSiparisi.DoesNotExist:
+        except MalzemeTalep.DoesNotExist:
             return Response(
                 {'error': 'Sipariş bulunamadı'}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -186,7 +195,7 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-        except SatinAlmaSiparisi.DoesNotExist:
+        except MalzemeTalep.DoesNotExist:
             return Response(
                 {'error': 'Sipariş bulunamadı'}, 
                 status=status.HTTP_404_NOT_FOUND
@@ -194,34 +203,83 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def reddet(self, request, pk=None):
-        """Mevcut adımı reddeder"""
+        """Mevcut adımı reddeder ve bir önceki adıma döner"""
         siparis = self.get_object()
-        
-        # Eğer sipariş zaten reddedilmişse, hata döndürme
-        if siparis.durum == 'reddedildi':
-            return Response(
-                {"message": "Bu sipariş zaten reddedilmiş"},
-                status=status.HTTP_200_OK
-            )
-        
-        # Red nedeni kontrolü
-        reason = request.data.get('reason', '')
-        if not reason:
-            return Response(
-                {"error": "Red nedeni belirtilmelidir"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        yorum = request.data.get('yorum', '')
         
         try:
-            engine = WorkflowEngine(siparis.tedarik_surec_durumu, request.user)
-            engine.reject_step(request.data)
+            surec_durumu = siparis.tedarik_surec_durumu
+            
+            # Eğer ilk adımdaysa reddetme işlemi yapma
+            if not surec_durumu.tamamlanan_adimlar.exists():
+                return Response(
+                    {"error": "İlk adım reddedilemez. Siparişi iptal etmeyi deneyin."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Red nedeni kontrolü
+            if not yorum:
+                return Response(
+                    {"error": "Red nedeni belirtilmelidir"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            try:
+                # Önce yorumu oluştur
+                yeni_yorum = SurecYorum.objects.create(
+                    surec_durumu=surec_durumu,
+                    adim=surec_durumu.mevcut_adim,
+                    yazan=request.user,
+                    yorum=yorum
+                )
+                
+                # Dosya yükleme işlemi
+                dosyalar = request.FILES.getlist('dosyalar', [])
+                for dosya in dosyalar:
+                    dosya_obj = Dosya.objects.create(
+                        surec_durumu=surec_durumu,
+                        dosya=dosya,
+                        yukleyen=request.user
+                    )
+                    yeni_yorum.dosyalar.add(dosya_obj)
+                
+                # Geri gönderme kaydı oluştur
+                GeriGonderme.objects.create(
+                    surec_durumu=surec_durumu,
+                    red_nedeni=yorum,
+                    geri_gonderen=request.user
+                )
+                
+                # Bir önceki adıma dön
+                onceki_adim = surec_durumu.tamamlanan_adimlar.order_by('-id').first()
+                if onceki_adim:
+                    surec_durumu.mevcut_adim = onceki_adim
+                    surec_durumu.tamamlanan_adimlar.remove(onceki_adim)
+                    surec_durumu.save()
+                    
+                    # Siparişin durumunu güncelle
+                    siparis.durum = 'revizyon_bekliyor'
+                    siparis.son_islem_yapan = request.user
+                    siparis.save()
+                
+                return Response({
+                    "message": "Adım reddedildi ve bir önceki adıma dönüldü",
+                    "onceki_adim": {
+                        "id": onceki_adim.id,
+                        "ad": onceki_adim.ad,
+                        "sira": onceki_adim.sira
+                    }
+                })
+                
+            except Exception as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+        except SurecDurumu.DoesNotExist:
             return Response(
-                {"message": "Adım reddedildi"},
-                status=status.HTTP_200_OK
-            )
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
+                {"error": "Bu sipariş için aktif bir süreç durumu bulunamadı."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -536,3 +594,18 @@ class ProjeViewSet(viewsets.ModelViewSet):
     serializer_class = ProjeSerializer
     authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [IsAuthenticated]
+
+class MalzemeTalepSatirViewSet(viewsets.ModelViewSet):
+    queryset = MalzemeTalepSatir.objects.all()
+    serializer_class = MalzemeTalepSatirSerializer
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+
+class MalzemeViewSet(viewsets.ModelViewSet):
+    queryset = Malzeme.objects.all()
+    serializer_class = MalzemeSerializer
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
+    permission_classes = [IsAuthenticated]
+
+

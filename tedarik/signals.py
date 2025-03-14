@@ -1,7 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import User
-from .models import UserProfile, SatinAlmaSiparisi, SurecDurumu,Surec,Adim
+from .models import UserProfile, MalzemeTalep, SurecDurumu,Surec,Adim
 
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
@@ -21,7 +21,7 @@ def save_user_profile(sender, instance, **kwargs):
     except UserProfile.DoesNotExist:
         UserProfile.objects.create(user=instance)
 
-@receiver(post_save, sender=SatinAlmaSiparisi)
+@receiver(post_save, sender=MalzemeTalep)
 def baslat_surec(sender, instance, created, **kwargs):
     """
     Yeni bir sipariş oluşturulduğunda otomatik olarak iş akışı başlatır.
@@ -34,7 +34,7 @@ def baslat_surec(sender, instance, created, **kwargs):
         pass
 
     # Eğer yeni oluşturulmuş bir sipariş ve onay süreci atanmışsa
-    if created and instance.onay_sureci:
+    if created and instance.proje.surec:
         try:
             # İlk adımı bul
             ilk_adim = instance.proje.surec.tedarik_adimlari.order_by('sira').first()
@@ -43,11 +43,11 @@ def baslat_surec(sender, instance, created, **kwargs):
                 # Yeni süreç durumu oluştur
                 surec_durumu = SurecDurumu.objects.create(
                     siparis=instance,
-                    surec=instance.onay_sureci,
+                    surec=instance.proje.surec,
                     mevcut_adim=ilk_adim
                 )
                 
                 # Siparişin durumunu güncelle
-                SatinAlmaSiparisi.objects.filter(id=instance.id).update(durum='onay_bekliyor')
+                MalzemeTalep.objects.filter(id=instance.id).update(durum='onay_bekliyor')
         except Exception as e:
             print(f"Süreç başlatma hatası: {e}") 

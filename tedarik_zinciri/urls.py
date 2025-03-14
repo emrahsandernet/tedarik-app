@@ -23,9 +23,9 @@ from tedarik.views import (
     SurecViewSet, AdimViewSet, SurecDurumuViewSet,
     GeriGondermeViewSet, DosyaViewSet, MeView, SurecYorumViewSet
 )
-from talep.views import MalzemeTalebiViewSet, TalepKalemiViewSet
+
 from core.views import UserViewSet, DepartmanViewSet, UrunViewSet, TedarikciViewSet
-from tedarik.views import UserProfileViewSet,SatinAlmaSiparisiViewSet,ProjeViewSet
+from tedarik.views import UserProfileViewSet,MalzemeTalepViewSet,ProjeViewSet,MalzemeTalepSatirViewSet,MalzemeViewSet
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -43,14 +43,13 @@ router.register(r'surec-durumlari', SurecDurumuViewSet)
 router.register(r'geri-gondermeler', GeriGondermeViewSet)
 router.register(r'dosyalar', DosyaViewSet)
 router.register(r'surec-yorumlar', SurecYorumViewSet)
-# Talep
-router.register(r'malzeme-talepleri', MalzemeTalebiViewSet)
-router.register(r'talep-kalemleri', TalepKalemiViewSet)
 
 
 # Sipariş
-router.register(r'talepler', SatinAlmaSiparisiViewSet)
+router.register(r'talepler', MalzemeTalepViewSet)
 router.register(r'projeler', ProjeViewSet)
+router.register(r'malzeme-talep-satirlar', MalzemeTalepSatirViewSet)
+router.register(r'malzemeler', MalzemeViewSet)
 # Tedarik
 router.register(r'user-profiles', UserProfileViewSet)
 

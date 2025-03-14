@@ -44,11 +44,6 @@ INSTALLED_APPS = [
     # Kendi uygulamalarımız
     'core',
     'workflow',
-    'talep',
-    'teklif',
-    'siparis',
-    'muhasebe',
-    'finans',
     'tedarik',  # Tekrar etkinleştirin
 ]
 

@@ -1,9 +1,27 @@
 from django.contrib import admin
 from .models import (
-    Urun, Tedarikci, SatinAlmaSiparisi, Surec, Adim, 
-    SurecDurumu, Departman, UserProfile, GeriGonderme, Dosya, Proje
+    Urun, Tedarikci, MalzemeTalep, Surec, Adim, 
+    SurecDurumu, Departman, UserProfile, GeriGonderme, Dosya, Proje,
+    MalzemeTalepSatir, Malzeme, MalzemeKategori
 )
 from django.contrib.admin import register
+
+@admin.register(MalzemeKategori)
+class MalzemeKategoriAdmin(admin.ModelAdmin):
+    list_display = ('ad', 'aciklama')
+    search_fields = ('ad',)
+
+@admin.register(Malzeme)
+class MalzemeAdmin(admin.ModelAdmin):
+    list_display = ('ad', 'kategori', 'stok')
+    search_fields = ('ad',)
+    list_filter = ('kategori',)
+
+@admin.register(MalzemeTalepSatir)
+class MalzemeTalepSatirAdmin(admin.ModelAdmin):
+    list_display = ('talep', 'malzeme', 'miktar')
+    search_fields = ('talep__proje__ad', 'malzeme__ad')
+    list_filter = ('talep__proje', 'malzeme')
 
 
 @admin.register(Proje)
@@ -71,23 +89,23 @@ class AdimAdmin(admin.ModelAdmin):
         }),
     )
 
-@admin.register(SatinAlmaSiparisi)
-class SatinAlmaSiparisiAdmin(admin.ModelAdmin):
-    list_display = ('olusturan', 'proje', 'toplam_tutar', 'durum', 'olusturma_tarihi')
+@admin.register(MalzemeTalep)  
+class MalzemeTalepAdmin(admin.ModelAdmin):
+    list_display = ('olusturan', 'proje', 'durum', 'olusturma_tarihi')
     list_filter = ('durum', 'proje')
     search_fields = ('olusturan__username', 'proje__ad')
     date_hierarchy = 'olusturma_tarihi'
     readonly_fields = ('olusturma_tarihi', 'guncelleme_tarihi', 'son_islem_yapan')
     fieldsets = (
         (None, {
-            'fields': ('olusturan', 'proje', 'toplam_tutar')
+            'fields': ('olusturan', 'proje', 'aciklama')
         }),
         ('Süreç Bilgileri', {
-            'fields': ('onay_sureci', 'durum')
+            'fields': ('durum', 'son_islem_yapan')
         }),
         ('Sistem Bilgileri', {
             'classes': ('collapse',),
-            'fields': ('son_islem_yapan', 'olusturma_tarihi', 'guncelleme_tarihi'),
+            'fields': ('olusturma_tarihi', 'guncelleme_tarihi'),
         }),
     )
 
