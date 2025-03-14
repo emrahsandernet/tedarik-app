@@ -95,9 +95,7 @@ class SatinAlmaSiparisiViewSet(viewsets.ModelViewSet):
         
         # Base queryset
         queryset = SatinAlmaSiparisi.objects.filter(
-            models.Q(olusturan=user) |  # Siparişi oluşturan kişi görebilir
-            models.Q(tedarik_surec_durumu__mevcut_adim__onaylayanlar=user) |  # Onaylayıcı olarak atanmış kişi görebilir
-            models.Q(tedarik_surec_durumu__son_islem_yapan=user)  # Son işlem yapan kişi görebilir
+            models.Q(tedarik_surec_durumu__mevcut_adim__onaylayanlar=user)  # Onaylayıcı olarak atanmış kişi görebilir
         )
         
         # Eğer kullanıcının departmanı varsa, departmana atanmış adımları da görebilir
