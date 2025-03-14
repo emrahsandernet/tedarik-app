@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Sipariş Reddedildi</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      .header {
+        background-color: #f8d7da;
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+        color: #721c24;
+      }
+      .footer {
+        margin-top: 30px;
+        font-size: 12px;
+        color: #777;
+      }
+      .button {
+        display: inline-block;
+        background-color: #dc3545;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 5px;
+        margin-top: 20px;
+      }
+      .reason {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+        border-left: 4px solid #dc3545;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h2>Sipariş Reddedildi</h2>
+      </div>
+
+      <p>Sayın {{ user.get_full_name|default:user.username }},</p>
+
+      <p>Aşağıdaki satın alma siparişiniz reddedilmiştir:</p>
+
+      <ul>
+        <li><strong>Sipariş ID:</strong> {{ order.id }}</li>
+        <li><strong>Tedarikçi:</strong> {{ order.tedarikci.ad }}</li>
+        <li><strong>Toplam Tutar:</strong> {{ order.toplam_tutar }} TL</li>
+        <li>
+          <strong>Reddeden:</strong> {{
+          rejector.get_full_name|default:rejector.username }}
+        </li>
+        <li><strong>Geri Dönülen Adım:</strong> {{ return_step.ad }}</li>
+      </ul>
+
+      <p><strong>Red Nedeni:</strong></p>
+      <div class="reason">{{ reason }}</div>
+
+      <p>Lütfen siparişi revize ederek tekrar onaya gönderiniz.</p>
+
+      <a
+        href="{{ app_url }}/admin/tedarik/satinasiparisi/{{ order.id }}/change/"
+        class="button"
+        >Siparişi Görüntüle</a
+      >
+
+      <div class="footer">
+        <p>Bu e-posta otomatik olarak gönderilmiştir. Lütfen yanıtlamayınız.</p>
+      </div>
+    </div>
+  </body>
+</html>
